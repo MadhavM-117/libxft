@@ -84,12 +84,14 @@ XftGlyphRender (Display		*dpy,
 		int		nglyphs)
 {
     XftFontInt	    *font = (XftFontInt *) pub;
-    int		    i;
+    int		    i, j;
     FT_UInt	    missing[XFT_NMISSING];
     int		    nmissing;
     FT_UInt	    g, max;
     int		    size, width;
+    int		    dstx, dsty;
     Glyph	    wire;
+    XftGlyph*       glyph;
     char	    *char8;
     unsigned short  *char16;
     unsigned int    *char32;
@@ -141,22 +143,46 @@ XftGlyphRender (Display		*dpy,
 	if (!chars)
 	    goto bail1;
     }
+    dstx = x;
+    dsty = y;
     char8 = (char *) chars;
     char16 = (unsigned short *) chars;
     char32 = (unsigned int *) chars;
-    for (i = 0; i < nglyphs; i++)
+    for (i = 0, j = 0; i < nglyphs; i++)
     {
 	wire = (Glyph) glyphs[i];
 	if (wire >= font->num_glyphs || !font->glyphs[wire])
 	    wire = 0;
-	switch (width) {
-	case 1: char8[i] = (char) wire; break;
-	case 2: char16[i] = (unsigned short) wire; break;
-	case 4: char32[i] = (unsigned int) wire; break;
+        glyph = font->glyphs[wire];
+	if (glyph->picture)
+	{
+	    _XftCompositeString(dpy, op, src, dst, font->format, font->glyphset,
+	                        srcx, srcy, x, y, width, chars, j);
+	    XRenderComposite(dpy, PictOpOver, glyph->picture, None,
+	                     dst, 0, 0, 0, 0, dstx, dsty - glyph->metrics.y,
+	                     glyph->metrics.width, glyph->metrics.height);
+
+	    dstx += glyph->metrics.xOff;
+	    dsty += glyph->metrics.yOff;
+
+	    x = dstx;
+	    y = dsty;
+	    j = 0;
+	}
+	else
+	{
+	    switch (width) {
+	    case 1: char8[j] = (char) wire; break;
+	    case 2: char16[j] = (unsigned short) wire; break;
+	    case 4: char32[j] = (unsigned int) wire; break;
+	    }
+	    dstx += glyph->metrics.xOff;
+	    dsty += glyph->metrics.yOff;
+	    ++j;
 	}
     }
     _XftCompositeString(dpy, op, src, dst, font->format, font->glyphset,
-                        srcx, srcy, x, y, width, chars, nglyphs);
+                        srcx, srcy, x, y, width, chars, j);
     if (chars != char_local)
 	free (chars);
 bail1:
@@ -319,9 +345,10 @@ XftGlyphSpecRender (Display		    *dpy,
 	    g = 0;
 	/*
 	 * check to see if the glyph is placed where it would
-	 * fall using the normal spacing
+	 * fall using the normal spacing and if it would render
+	 * as a XRender glyph
 	 */
-	if ((glyph = font->glyphs[g]))
+	if ((glyph = font->glyphs[g]) && !glyph->picture)
 	{
 	    if (x != glyphs[i].x || y != glyphs[i].y)
 	    {
@@ -335,7 +362,7 @@ XftGlyphSpecRender (Display		    *dpy,
     }
 
     elts = elts_local;
-    if (nelt > NUM_ELT_LOCAL)
+    if (!font->info.color && nelt > NUM_ELT_LOCAL)
     {
 	elts = malloc ((size_t)nelt * sizeof (XGlyphElt8));
 	if (!elts)
@@ -343,7 +370,7 @@ XftGlyphSpecRender (Display		    *dpy,
     }
 
     /*
-     * Generate the list of glyph elts
+     * Generate the list of glyph elts or render color glyphs
      */
     nelt = 0;
     x = y = 0;
@@ -357,6 +384,14 @@ XftGlyphSpecRender (Display		    *dpy,
 	    g = 0;
 	if ((glyph = font->glyphs[g]))
 	{
+	    if (glyph->picture)
+	    {
+                XRenderComposite(dpy, PictOpOver, glyph->picture, None,
+                                 dst, 0, 0, 0, 0,
+                                 glyphs[i].x, glyphs[i].y - glyph->metrics.y,
+                                 glyph->metrics.width, glyph->metrics.height);
+                continue;
+	    }
 	    if (!i || x != glyphs[i].x || y != glyphs[i].y)
 	    {
 		if (n)
@@ -589,7 +624,7 @@ XftGlyphFontSpecRender (Display			    *dpy,
 	 * check to see if the glyph is placed where it would
 	 * fall using the normal spacing
 	 */
-	if ((glyph = font->glyphs[g]))
+	if ((glyph = font->glyphs[g]) && !glyph->picture)
 	{
 	    if (pub != prevPublic || x != glyphs[i].x || y != glyphs[i].y)
 	    {
@@ -614,7 +649,7 @@ XftGlyphFontSpecRender (Display			    *dpy,
     }
 
     /*
-     * Generate the list of glyph elts
+     * Generate the list of glyph elts and render color glyphs
      */
     nelt = 0;
     x = y = 0;
@@ -632,6 +667,14 @@ XftGlyphFontSpecRender (Display			    *dpy,
 	    g = 0;
 	if ((glyph = font->glyphs[g]))
 	{
+	    if (glyph->picture)
+	    {
+                XRenderComposite(dpy, PictOpOver, glyph->picture, None,
+                                 dst, 0, 0, 0, 0,
+                                 glyphs[i].x, glyphs[i].y - glyph->metrics.y,
+                                 glyph->metrics.width, glyph->metrics.height);
+                continue;
+	    }
 	    if (!i || pub != prevPublic || x != glyphs[i].x || y != glyphs[i].y)
 	    {
 		if (n)
