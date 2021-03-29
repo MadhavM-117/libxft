@@ -47,6 +47,16 @@ keithp@keithp.com
 # Custom local installation (for st)
 ------------------------------------
 
+## Pre-requisites
+
+For Ubuntu, the pre-requisites needed to compile libxft can be installed using: 
+
+```bash
+sudo apt install libfreetype-dev xutils-dev
+```
+
+## Compile and install
+
 Run the following commands
 
 ```bash
