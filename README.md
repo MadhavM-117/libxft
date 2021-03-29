@@ -44,4 +44,21 @@ To release a version of this library:
 Keith Packard  
 keithp@keithp.com
 
+# Custom local installation (for st)
+------------------------------------
 
+Run the following commands
+
+```bash
+sh autogen.sh --sysconfdir=/etc --prefix=$HOME/.local --mandir=$HOME/.local/share/man
+make 
+make install
+```
+
+This will install the patched version of Xft to allow for colored emojis, to your local user.
+
+The library files can then be found at: 
+`$HOME/.local/lib`.
+
+The headers files to be included can be found at: 
+`$HOME/.local/include`
